@@ -1,0 +1,56 @@
+# A bag-of-words sentiment classifier written in plain Lume.
+#
+#   lume run examples/text_sentiment.lume
+
+let vocabulary = ["good", "great", "love", "bad", "hate", "awful"]
+
+# count how often every word of the vocabulary appears in a review
+fn count_words(review) {
+    let counts = [0, 0, 0, 0, 0, 0]
+    for word in split(lower(review)) {
+        for index in range(6) {
+            if vocabulary[index] == word {
+                counts[index] = counts[index] + 1
+            }
+        }
+    }
+    return counts
+}
+
+let reviews = [
+    "good great love",
+    "bad awful hate",
+    "love this good movie",
+    "hate it awful bad"
+]
+let labels = [1, 0, 1, 0]
+
+let rows = []
+for review in reviews {
+    rows = rows + [count_words(review)]
+}
+
+print "features of the first review:"
+print rows[0]
+
+data bag = dataset(rows, labels)
+
+model Sentiment {
+    layer Dense(8, "relu")
+    layer Dense(1, "sigmoid")
+
+    train(
+        data = bag,
+        epochs = 120,
+        lr = 0.1,
+        optimizer = "adam",
+        loss = "binary_crossentropy"
+    )
+
+    eval(data = bag)
+}
+
+print "a good review:"
+print predict(Sentiment, [count_words("good love great")])
+print "a bad review:"
+print predict(Sentiment, [count_words("awful hate bad")])
