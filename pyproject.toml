@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lume-lang"
+version = "0.1.0"
+description = "Lume - a tiny programming language for building AI models, with Lume Studio IDE"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Lume contributors" }]
+keywords = ["ai", "machine-learning", "neural-network", "language", "interpreter", "ide"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Lume",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.optional-dependencies]
+speed = ["numpy"]
+build = ["pyinstaller"]
+dev = ["pyinstaller", "playwright"]
+
+[project.urls]
+Homepage = "https://github.com/lume-lang/lume"
+Documentation = "https://github.com/lume-lang/lume/blob/main/docs/LANGUAGE.md"
+Issues = "https://github.com/lume-lang/lume/issues"
+
+[project.scripts]
+lume = "lume.cli:main"
+lumeide = "lumeide.__main__:main"
+
+[tool.setuptools]
+packages = ["lume", "lumeide"]
+
+[tool.setuptools.package-data]
+lumeide = ["static/*"]
