@@ -31,17 +31,22 @@ def _read(path: str) -> str:
 def _run_source(source: str, filename: str = "<script>", quiet: bool = False) -> Interpreter:
     program = parse(source, filename)
     started = time.time()
+    state = {"broken": False}
 
     def write(text: str):
-        if not quiet:
+        if quiet or state["broken"]:
+            return
+        try:
             sys.stdout.write(text)
             sys.stdout.flush()
+        except BrokenPipeError:      # e.g. `lume run file.lume | head`
+            state["broken"] = True
 
     interp = Interpreter(write=write)
     interp.visit(program, interp.global_scope)
-    if not quiet:
+    if not quiet and not state["broken"]:
         elapsed = (time.time() - started) * 1000
-        sys.stdout.write(f"— done in {elapsed:.1f} ms\n")
+        write(f"— done in {elapsed:.1f} ms\n")
     return interp
 
 
@@ -219,6 +224,8 @@ def main(argv=None) -> int:
     except LumeError as exc:
         print(f"✖ {exc}")
         return 1
+    except BrokenPipeError:
+        return 0
     except KeyboardInterrupt:
         print("\ninterrupted")
         return 130
