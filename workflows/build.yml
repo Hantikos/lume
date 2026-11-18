@@ -1,0 +1,70 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: lume-windows
+          - os: ubuntu-latest
+            artifact: lume-linux
+          - os: macos-latest
+            artifact: lume-macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Build Lume Studio and the CLI
+        run: python tools/build_exe.py --all
+
+      - name: Smoke test the CLI
+        run: python tools/entry_cli.py run examples/hello.lume
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/lume
+            dist/lume.exe
+            dist/LumeStudio
+            dist/LumeStudio.exe
+          if-no-files-found: ignore
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+      - name: Build Lume Studio for Windows
+        run: python tools/build_exe.py --studio
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/LumeStudio
+          draft: false
+          generate_release_notes: true

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/screenshots/studio-dark.png" alt="Lume Studio" width="880">
+<img src="https://h.uguu.se/juDUGpUpsFmE.png" alt="Lume Studio" width="880">
 
 # Lume
 
@@ -9,6 +9,13 @@
 *A tiny programming language for building AI models, shipped with Lume Studio — an IDE with a built-in keyless AI assistant.*
 
 </div>
+
+<p align="center">
+  <a href="docs/screenshots/index.html">📸 все скриншоты</a> ·
+  <a href="docs/TUTORIAL.md">📖 руководство</a> ·
+  <a href="docs/LANGUAGE.md">📘 спецификация</a> ·
+  <a href="examples/">🧪 примеры</a>
+</p>
 
 ---
 
@@ -94,7 +101,7 @@ print predict(XorNet, [[1, 0]])    # [1]
 
 ## Lume Studio
 
-<img src="docs/screenshots/studio-run.png" alt="Lume Studio — запуск" width="880">
+<img src="https://n.uguu.se/UderYiGTQPQG.png" alt="Lume Studio — запуск" width="880">
 
 * **Редактор** с подсветкой синтаксиса, номерами строк и подсветкой строки с ошибкой
 * **Консоль** вывода: логи обучения, метрики, ошибки; вкладки «Проблемы» и «Модели»
@@ -143,7 +150,9 @@ pip install pyinstaller
 python tools/build_exe.py --all      # dist/lume(.exe) и dist/LumeStudio(.exe)
 ```
 
-Готовые `.exe` для Windows собираются в CI: **[.github/workflows/build.yml](.github/workflows/build.yml)** — запустите workflow на GitHub Actions или скачайте артефакт.
+Готовые `.exe` для Windows собираются в CI: **[workflows/build.yml](workflows/build.yml)** —
+скопируйте его в `.github/workflows/` (см. [workflows/README.md](workflows/README.md)) и запустите
+workflow на GitHub Actions, затем заберите артефакт.
 
 ---
 
@@ -180,9 +189,15 @@ lume/            интерпретатор языка (лексер, парсе
 lumeide/         оболочка: локальный сервер + веб-интерфейс студии
 examples/        примеры на Lume
 tests/           тесты языка, сборщиков и API (python -m unittest discover -s tests)
-tools/           сборка EXE, скриншоты
+tools/           сборка EXE, скриншоты, публикация на GitHub
+workflows/       готовые GitHub Actions workflows (скопируйте в .github/workflows)
 docs/            спецификация языка, руководство, скриншоты
 ```
+
+> Скриншоты хранятся в репозитории дважды: как `docs/screenshots/*.png.b64`
+> (файловый API GitHub принимает только текст) и как самодостаточная страница
+> `docs/screenshots/index.html` со встроенными картинками. Восстановить обычные
+> PNG-файлы: `python tools/decode_screenshots.py`.
 
 ## Тесты
 

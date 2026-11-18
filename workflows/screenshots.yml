@@ -1,0 +1,40 @@
+name: screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "docs/screenshots/**"
+      - "tools/decode_screenshots.py"
+      - ".github/workflows/screenshots.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    name: restore screenshots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Decode base64 screenshots
+        run: python tools/decode_screenshots.py
+      - name: Remove leftover placeholder files
+        run: |
+          rm -rf tmp-test
+          git rm -r --cached tmp-test >/dev/null 2>&1 || true
+      - name: Commit the restored PNG files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A docs/screenshots tmp-test 2>/dev/null || true
+          git add -A
+          if git diff --staged --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "Restore PNG screenshots from base64 copies"
+            git push
+          fi
