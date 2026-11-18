@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lume Studio — IDE для языка Lume</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">L</span>
+    <div class="brand-text">
+      <strong>Lume Studio</strong>
+      <small>простой язык для ИИ-моделей</small>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="actions">
+    <button class="btn ghost" id="btnCheck" title="Проверить синтаксис (Ctrl+Shift+C)">Проверить</button>
+    <button class="btn primary" id="btnRun" title="Запустить (Ctrl+Enter)">
+      <span class="play">▶</span> Запустить
+    </button>
+    <div class="menu-wrap">
+      <button class="btn" id="btnBuild">Собрать ▾</button>
+      <div class="menu" id="buildMenu">
+        <button data-build="model"><b>Модель</b><small>model.json + загрузчик на Python</small></button>
+        <button data-build="app"><b>Приложение</b><small>готовый мини-сервис с веб-интерфейсом</small></button>
+        <button data-build="exe"><b>EXE</b><small>одиночный исполняемый файл (PyInstaller)</small></button>
+      </div>
+    </div>
+    <button class="btn ghost icon" id="btnTheme" title="Сменить тему">◐</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <aside class="sidebar left" id="sidebarLeft">
+    <div class="panel-tabs">
+      <button class="ptab active" data-panel="files">Файлы</button>
+      <button class="ptab" data-panel="examples">Примеры</button>
+    </div>
+
+    <section class="panel active" id="panelFiles">
+      <div class="panel-head">
+        <span id="workspaceName">проект</span>
+        <button class="mini" id="btnNewFile" title="Новый файл">+</button>
+      </div>
+      <ul class="tree" id="fileTree"></ul>
+      <div class="panel-foot">
+        <button class="mini wide" id="btnReloadTree">Обновить</button>
+      </div>
+    </section>
+
+    <section class="panel" id="panelExamples">
+      <div class="panel-head"><span>Готовые примеры</span></div>
+      <ul class="examples" id="exampleList"></ul>
+    </section>
+
+    <div class="sidebar-footer">
+      <div class="chip" id="aiStatus"><span class="dot"></span> Pollinations</div>
+      <div class="chip" id="runtimeStatus"><span class="dot"></span> Lume runtime</div>
+    </div>
+  </aside>
+
+  <section class="center">
+    <div class="editor-shell">
+      <div class="gutter" id="gutter"></div>
+      <div class="editor-wrap" id="editorWrap">
+        <pre class="highlight" id="highlight" aria-hidden="true"><code></code></pre>
+        <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off"
+                  placeholder="// напишите модель на Lume..."></textarea>
+      </div>
+      <div class="err-marker" id="errMarker"></div>
+    </div>
+
+    <div class="console" id="console">
+      <div class="console-head">
+        <div class="panel-tabs small">
+          <button class="ptab active" data-console="output">Вывод</button>
+          <button class="ptab" data-console="problems">Проблемы <span class="badge zero" id="problemCount">0</span></button>
+          <button class="ptab" data-console="models">Модели</button>
+        </div>
+        <div class="console-tools">
+          <span class="muted" id="runTime"></span>
+          <button class="mini" id="btnClearConsole" title="Очистить">✕</button>
+          <button class="mini" id="btnToggleConsole" title="Свернуть">▾</button>
+        </div>
+      </div>
+      <div class="console-body">
+        <pre id="consoleOutput" class="output"></pre>
+        <div id="problems" class="problems"></div>
+        <div id="modelsPanel" class="models"></div>
+      </div>
+    </div>
+
+    <footer class="statusbar">
+      <span id="statusLeft">готово</span>
+      <span class="spacer"></span>
+      <span id="statusPos">стр 1, кол 1</span>
+      <span id="statusLang">Lume</span>
+    </footer>
+  </section>
+
+  <aside class="sidebar right" id="sidebarRight">
+    <div class="ai-head">
+      <div class="ai-title">
+        <span class="logo small">AI</span>
+        <div>
+          <strong>Ассистент</strong>
+          <small>Pollinations · без ключей</small>
+        </div>
+      </div>
+      <select id="modelSelect" title="Модель ассистента"></select>
+    </div>
+
+    <div class="quick">
+      <button data-prompt="Объясни этот код простыми словами и покажи, что можно улучшить.">Объяснить</button>
+      <button data-prompt="Найди ошибку в этом коде и исправь её.">Найти ошибку</button>
+      <button data-prompt="Напиши на Lume полноценную модель для классификации с обучением и метриками.">Написать модель</button>
+      <button data-prompt="Объясни мне синтаксис Lume на примерах.">Учить язык</button>
+    </div>
+
+    <div class="chat" id="chat"></div>
+
+    <div class="chat-input">
+      <textarea id="chatInput" rows="2" placeholder="Спроси ассистента... (Ctrl+Enter — отправить)"></textarea>
+      <div class="chat-tools">
+        <button class="mini" id="btnImage" title="Сгенерировать картинку">🎨 картинка</button>
+        <button class="btn primary small" id="btnSend">Отправить</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <div class="modal-head"><span id="modalTitle">Диалог</span><button class="mini" id="btnModalClose">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
