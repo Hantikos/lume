@@ -1,0 +1,25 @@
+# Linear regression: teach the network the line y = 3x + 2.
+#
+#   lume run examples/regression.lume
+
+data points = dataset.linear(count = 60, noise = 0.2)
+
+model Line {
+    layer Dense(16, "relu")
+    layer Dense(1, "none")
+
+    train(
+        data = points,
+        epochs = 200,
+        lr = 0.02,
+        optimizer = "adam",
+        loss = "mse"
+    )
+
+    eval(data = points)
+}
+
+print "the network says (the real answer is 3x + 2):"
+print forward(Line, [[0.0]])
+print forward(Line, [[1.0]])
+print forward(Line, [[2.5]])
