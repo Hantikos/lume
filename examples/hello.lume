@@ -1,0 +1,10 @@
+# The smallest possible Lume program.
+print "Hello from Lume!"
+
+# Lume uses curly braces for blocks - the same idea as in JavaScript or C.
+fn greet(name) {
+    print f"Hello, {name}! Nice to meet you."
+}
+
+greet("world")
+greet("friend")
