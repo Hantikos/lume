@@ -1,0 +1,91 @@
+# A quick tour of the whole language.
+#
+#   lume run examples/tour.lume
+
+# --- variables -----------------------------------------------------------
+let name = "Lume"
+let version = 0.1
+const pi = 3.14159
+let numbers = [1, 2, 3, 4]
+let settings = {"epochs": 10, "lr": 0.01}
+
+print f"hello, {name}! version {version}"
+print numbers
+print settings["epochs"]
+
+# --- functions -----------------------------------------------------------
+fn square(x) {
+    return x * x
+}
+
+fn sum_all(values) {
+    let total = 0
+    for value in values {
+        total = total + value
+    }
+    return total
+}
+
+fn greet(who, greeting = "hi") {
+    print f"{greeting}, {who}!"
+}
+
+print square(7)
+print sum_all(numbers)
+greet("world")
+greet("friend", "hello")
+
+# --- conditions ----------------------------------------------------------
+let temperature = 18
+
+if temperature > 25 {
+    print "it is warm"
+} else if temperature > 10 {
+    print "it is nice outside"
+} else {
+    print "it is cold"
+}
+
+# --- loops ---------------------------------------------------------------
+let total = 0
+for number in range(1, 6) {
+    total = total + number
+}
+print "sum 1..5 = " + total
+
+let counter = 0
+while counter < 3 {
+    print "hello from the loop " + counter
+    counter = counter + 1
+}
+
+# --- collections ---------------------------------------------------------
+let words = ["alpha", "beta", "gamma"]
+for word in words {
+    print word
+}
+
+let table = {}
+for index in range(3) {
+    table[index] = index * index
+}
+print table
+
+# --- tensors -------------------------------------------------------------
+let matrix = tensor([[1, 2], [3, 4]])
+print matrix
+print matrix.shape
+print matrix @ tensor([[1], [1]])
+
+# --- a tiny model --------------------------------------------------------
+data points = dataset.xor()
+
+model Tiny {
+    layer Dense(4, "relu")
+    layer Dense(1, "sigmoid")
+
+    train(data = points, epochs = 40, lr = 0.2, optimizer = "adam", loss = "binary_crossentropy")
+}
+
+print "xor answer for [1, 1]:"
+print predict(Tiny, [[1, 1]])
