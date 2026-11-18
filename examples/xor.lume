@@ -1,0 +1,26 @@
+# XOR is the classic "a neural network can do this" example.
+#
+#   lume run examples/xor.lume
+
+data points = dataset.xor()
+
+model XorNet {
+    layer Dense(16, "relu")
+    layer Dense(1, "sigmoid")
+
+    train(
+        data = points,
+        epochs = 150,
+        lr = 0.2,
+        optimizer = "adam",
+        loss = "binary_crossentropy"
+    )
+
+    eval(data = points)
+}
+
+print "what does the network answer?"
+print predict(XorNet, [[0, 0]])   # 0
+print predict(XorNet, [[0, 1]])   # 1
+print predict(XorNet, [[1, 0]])   # 1
+print predict(XorNet, [[1, 1]])   # 0
