@@ -7,7 +7,7 @@
 ## Шаг 0. Установка
 
 ```bash
-git clone https://github.com/<owner>/lume.git
+git clone https://github.com/Hantikos/lume.git
 cd lume
 python -m lume examples
 ```

@@ -34,7 +34,7 @@
 ## Быстрый старт / Quick start
 
 ```bash
-git clone https://github.com/<owner>/lume.git
+git clone https://github.com/Hantikos/lume.git
 cd lume
 
 # 1. запустить пример
