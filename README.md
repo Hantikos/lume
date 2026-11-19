@@ -24,7 +24,7 @@
 | | |
 | --- | --- |
 | 🗣 **Язык** | `Lume` — 30 ключевых слов, фигурные скобки, знакомый синтаксис. Читается как обычный код, но модели описываются в три строки. |
-| 🧠 **Модели** | Слои `Dense`, `Activation`, `Dropout`, `Flatten`, `Embedding`, оптимизаторы `sgd/momentum/rmsprop/adam`, лоссы `mse/mae/binary_crossentropy/crossentropy`, метрики и матрица ошибок — из коробки. |
+| 🧠 **Модели** | Слои `Dense`, `Conv2d`, `MaxPool`, `Activation`, `Dropout`, `Flatten`, `Embedding`, оптимизаторы `sgd/momentum/rmsprop/adam`, лоссы `mse/mae/binary_crossentropy/crossentropy`, метрики и матрица ошибок — из коробки. |
 | 🖥 **Оболочка** | `Lume Studio` — IDE с подсветкой синтаксиса, консолью, деревом файлов и встроенным **ИИ-ассистентом Pollinations без API-ключа**. |
 | 📦 **Сборка** | Из одного и того же кода собираются: **модель** (`model.json` + загрузчик), **приложение** (готовый веб-сервис) и **EXE** (одиночный исполняемый файл). |
 | ⚡ **Зависимости** | Ноль. Только стандартная библиотека Python 3.9+. |
@@ -179,6 +179,7 @@ lume examples               список примеров
 | [`examples/xor.lume`](examples/xor.lume) | нейросеть на 100 % решает XOR |
 | [`examples/regression.lume`](examples/regression.lume) | линейная регрессия: учим `y = 3x + 2` |
 | [`examples/text_sentiment.lume`](examples/text_sentiment.lume) | классификатор тональности текста на bag-of-words |
+| [`examples/cnn.lume`](examples/cnn.lume) | свёрточная сеть для картинок (98 % accuracy) |
 
 ---
 
@@ -207,8 +208,8 @@ python -m unittest discover -s tests -v
 
 ## Дорожная карта
 
-* свёрточные слои (`Conv2d`, `MaxPool`) и операции над изображениями
 * рекуррентные слои (`LSTM`, `GRU`) и работа с последовательностями
+* свёрточные слои для многоканальных изображений и `AvgPool`
 * импорт и экспорт в ONNX
 * плагины и пакеты `lume` с реестром
 

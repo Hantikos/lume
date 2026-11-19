@@ -227,7 +227,30 @@ python tools/build_exe.py --all
 
 ---
 
-## Шаг 12. Куда двигаться дальше
+## Шаг 12. Картинки и свёрточная сеть
+
+```lume
+data images = dataset.bars(count = 60, size = 8)
+
+model LineNet {
+    layer Conv2d(4, 3, 8, 8, 1, "relu")   # 4 фильтра 3x3
+    layer MaxPool(2)                      # 8x8 -> 3x3
+    layer Flatten()
+    layer Dense(16, "relu")
+    layer Dense(2, "softmax")
+
+    train(data = images, epochs = 40, lr = 0.02, optimizer = "adam", loss = "crossentropy")
+    eval(data = images)
+}
+```
+
+Размер картинки задаётся в `Conv2d` (`height`, `width`, `channels`),
+`MaxPool` наследует размеры сам. Обучение такой сети на чистом Python
+занимает пару секунд.
+
+---
+
+## Шаг 13. Куда двигаться дальше
 
 * `examples/tour.lume` — полный обзор возможностей языка.
 * `examples/text_sentiment.lume` — классификатор текста на bag-of-words.

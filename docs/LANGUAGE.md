@@ -154,8 +154,28 @@ model MyNet {
 | `Dropout` | — | `Dropout(rate)` |
 | `Flatten` | — | `Flatten()` |
 | `Embedding` | обучаемый | `Embedding(vocab_size, dim)` |
+| `Conv2d` | обучаемый | `Conv2d(filters, kernel, height, width, channels, activation, stride)` |
+| `MaxPool` | — | `MaxPool(size, stride)` |
 
 Активации: `none`, `linear`, `relu`, `sigmoid`, `tanh`, `gelu`, `softmax`.
+
+`softmax` работает по всей строке выхода сразу и рассчитан на связку с лоссом
+`crossentropy`.
+
+**Свёрточный блок** для изображений:
+
+```lume
+model Vision {
+    layer Conv2d(8, 3, 8, 8, 1, "relu")   # 8 фильтров 3x3 на картинке 8x8
+    layer MaxPool(2)                      # 8x8 -> 3x3
+    layer Flatten()
+    layer Dense(16, "relu")
+    layer Dense(2, "softmax")
+}
+```
+
+Размер картинки указывается в `Conv2d` (`height`, `width`, `channels`),
+а `MaxPool` наследует размеры от предыдущего слоя.
 
 ### 3.2 Данные
 
@@ -174,6 +194,7 @@ data tensor_data = dataset(tensor([[1, 2]]), [1])
 | `dataset.linear(count, noise, seed)` | случайные точки на прямой `y = 3x + 2` |
 | `dataset.blobs(classes, per_class, seed)` | gaussian-кластеры |
 | `dataset.spiral(count, noise, seed)` | спираль |
+| `dataset.bars(count, size, noise, seed)` | маленькие картинки с вертикальной/горизонтальной полосой |
 
 ### 3.3 Обучение
 
