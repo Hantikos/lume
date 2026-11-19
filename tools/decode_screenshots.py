@@ -23,7 +23,7 @@ def main() -> int:
         return 0
     count = 0
     for name in sorted(os.listdir(FOLDER)):
-        if not name.endswith(".png.b64"):
+        if not name.endswith(".b64"):
             continue
         source = os.path.join(FOLDER, name)
         target = os.path.join(FOLDER, name[:-4])
