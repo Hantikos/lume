@@ -40,18 +40,21 @@ def main() -> int:
         page.click('.examples li:nth-child(1) button')
         page.wait_for_timeout(900)
         page.screenshot(path=os.path.join(out, "studio-dark.png"))
+        page.screenshot(path=os.path.join(out, "studio-dark.jpg"), type="jpeg", quality=88)
         print("saved studio-dark.png")
 
         # run it: the console shows the training log
         page.click("#btnRun")
         page.wait_for_timeout(2500)
         page.screenshot(path=os.path.join(out, "studio-run.png"))
+        page.screenshot(path=os.path.join(out, "studio-run.jpg"), type="jpeg", quality=88)
         print("saved studio-run.png")
 
         # light theme
         page.click("#btnTheme")
         page.wait_for_timeout(700)
         page.screenshot(path=os.path.join(out, "studio-light.png"))
+        page.screenshot(path=os.path.join(out, "studio-light.jpg"), type="jpeg", quality=88)
         print("saved studio-light.png")
 
         browser.close()
