@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://n.uguu.se/hHPnmlZBhqJw.png" alt="Lume Studio" width="880">
+<img src="https://n.uguu.se/ulpEtmnNWtZg.png" alt="Lume Studio" width="880">
 
 # Lume
 
@@ -101,7 +101,7 @@ print predict(XorNet, [[1, 0]])    # [1]
 
 ## Lume Studio
 
-<img src="https://d.uguu.se/cJyMMyjhNEAY.png" alt="Lume Studio — запуск" width="880">
+<img src="https://d.uguu.se/QzNHnrguLkWC.png" alt="Lume Studio — запуск" width="880">
 
 * **Редактор** с подсветкой синтаксиса, номерами строк и подсветкой строки с ошибкой
 * **Консоль** вывода: логи обучения, метрики, ошибки; вкладки «Проблемы» и «Модели»
