@@ -254,10 +254,29 @@ def _build_builtins() -> dict:
                 labels.append(c)
         return Dataset(Tensor.from_nested(rows), labels, "spiral")
 
+    def _bars(count=40, size=8, noise=0.15, seed=11):
+        """Tiny images with a vertical bar (class 0) or a horizontal bar (class 1)."""
+        rng = random.Random(seed)
+        size = int(size)
+        rows, labels = [], []
+        for index in range(int(count)):
+            image = [0.0] * (size * size)
+            vertical = index % 2 == 0
+            column = rng.randrange(size)
+            line = rng.randrange(size)
+            for step in range(size):
+                position = (line * size + step) if vertical else (step * size + column)
+                image[position] = 1.0
+            image = [max(0.0, min(1.0, value + rng.uniform(-noise, noise))) for value in image]
+            rows.append(image)
+            labels.append(0 if vertical else 1)
+        return Dataset(Tensor.from_nested(rows), labels, "bars")
+
     add("dataset.xor", _xor)
     add("dataset.linear", _linear)
     add("dataset.blobs", _blobs)
     add("dataset.spiral", _spiral)
+    add("dataset.bars", _bars)
 
     def _csv(path, delimiter=","):
         rows = []

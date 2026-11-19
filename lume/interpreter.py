@@ -334,6 +334,20 @@ class Interpreter:
             vocab = args[0] if args else kwargs.get("vocab_size", 1)
             dim = args[1] if len(args) > 1 else kwargs.get("dim", 8)
             return cls(int(vocab), int(dim))
+        if cls.__name__ == "Conv2d":
+            filters = args[0] if args else kwargs.get("filters", 1)
+            kernel = args[1] if len(args) > 1 else kwargs.get("kernel", 3)
+            height = args[2] if len(args) > 2 else kwargs.get("height", 0)
+            width = args[3] if len(args) > 3 else kwargs.get("width", 0)
+            channels = args[4] if len(args) > 4 else kwargs.get("channels", 1)
+            activation = args[5] if len(args) > 5 else kwargs.get("activation", "relu")
+            stride = args[6] if len(args) > 6 else kwargs.get("stride", 1)
+            return cls(int(filters), int(kernel), int(height), int(width), int(channels),
+                       str(activation), int(stride))
+        if cls.__name__ == "MaxPool":
+            size = args[0] if args else kwargs.get("size", 2)
+            stride = args[1] if len(args) > 1 else kwargs.get("stride", 2)
+            return cls(int(size), int(stride))
         return cls()
 
     # -- expressions ------------------------------------------------------

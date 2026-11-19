@@ -205,6 +205,10 @@ ACTIVATIONS = {
 
 
 def activation_forward(name: str, values):
+    name = (name or "none").lower()
+    if name == "softmax":
+        # softmax works on the whole vector at once, not element by element
+        return softmax(values)
     fn = ACTIVATIONS.get(name, ACTIVATIONS["none"])
     return [fn(v) for v in values]
 
@@ -229,7 +233,9 @@ def activation_grad(name: str, pre_values, post_values):
             out.append(0.5 * (1 + math.tanh(inner)) + 0.5 * p * (1 - math.tanh(inner) ** 2) * d_inner)
         return out
     if name == "softmax":
-        return list(post_values)
+        # softmax is always used together with the crossentropy loss, which
+        # already returns the fused gradient (probabilities - one hot)
+        return [1.0] * len(pre_values)
     return [1.0] * len(pre_values)
 
 
@@ -420,6 +426,212 @@ class Flatten(Layer):
         return {"type": "Flatten"}
 
 
+class Conv2d(Layer):
+    """2-D convolution over small images.
+
+    Images are stored flattened: one sample per row, pixels ordered as
+    ``channel -> row -> column`` (``C * H * W`` values per sample).
+    """
+
+    type_name = "Conv2d"
+    trainable = True
+
+    def __init__(self, filters: int, kernel: int, height: int, width: int,
+                 channels: int = 1, activation: str = "relu", stride: int = 1):
+        self.filters = int(filters)
+        self.kernel = int(kernel)
+        self.height = int(height)
+        self.width = int(width)
+        self.channels = int(channels)
+        self.activation = (activation or "none").lower()
+        self.stride = max(1, int(stride))
+        self.out_height = (self.height - self.kernel) // self.stride + 1
+        self.out_width = (self.width - self.kernel) // self.stride + 1
+        if self.out_height <= 0 or self.out_width <= 0:
+            raise ValueError("the kernel is larger than the image")
+        self.in_dim = self.channels * self.height * self.width
+        self.out_dim = self.filters * self.out_height * self.out_width
+        self.W = None
+        self.b = None
+        self.gW = None
+        self.gb = None
+        self._cache = None
+
+    def build(self, in_dim: int, rng: random.Random):
+        if in_dim and in_dim != self.in_dim:
+            raise ValueError(f"Conv2d expects {self.in_dim} inputs per image, got {in_dim}")
+        self.in_dim = self.in_dim or in_dim
+        limit = math.sqrt(6.0 / (self.in_dim + self.out_dim))
+        size = self.channels * self.kernel * self.kernel
+        self.W = [[rng.uniform(-limit, limit) for _ in range(size)] for _ in range(self.filters)]
+        self.b = [0.0] * self.filters
+        self.gW = [[0.0] * size for _ in range(self.filters)]
+        self.gb = [0.0] * self.filters
+
+    def forward(self, x: Tensor) -> Tensor:
+        if self.W is None:
+            self.build(x.cols, random.Random(0))
+        batch = x.rows
+        data = x.data
+        out = [0.0] * (batch * self.out_dim)
+        pre = [0.0] * (batch * self.out_dim)
+        k = self.kernel
+        for s in range(batch):
+            xoff = s * self.in_dim
+            for f in range(self.filters):
+                weights = self.W[f]
+                bias = self.b[f]
+                for oh in range(self.out_height):
+                    for ow in range(self.out_width):
+                        total = bias
+                        for c in range(self.channels):
+                            base = xoff + c * self.height * self.width
+                            for i in range(k):
+                                h = oh * self.stride + i
+                                row_base = base + h * self.width
+                                wbase = c * k * k + i * k
+                                for j in range(k):
+                                    wpos = ow * self.stride + j
+                                    total += data[row_base + wpos] * weights[wbase + j]
+                        index = s * self.out_dim + (f * self.out_height + oh) * self.out_width + ow
+                        pre[index] = total
+        activated = [0.0] * len(pre)
+        for s in range(batch):
+            for f in range(self.filters):
+                start = s * self.out_dim + f * self.out_height * self.out_width
+                block = pre[start:start + self.out_height * self.out_width]
+                values = activation_forward(self.activation, block)
+                activated[start:start + len(values)] = values
+        self._cache = (x, pre, activated)
+        return Tensor(batch, self.out_dim, activated)
+
+    def backward(self, grad: Tensor) -> Tensor:
+        x, pre, activated = self._cache
+        batch = x.rows
+        data = x.data
+        k = self.kernel
+        dx = [0.0] * (batch * self.in_dim)
+        dpre = [0.0] * (batch * self.out_dim)
+        for s in range(batch):
+            start = s * self.out_dim
+            block = pre[start:start + self.out_dim]
+            post = activated[start:start + self.out_dim]
+            derivative = activation_grad(self.activation, block, post)
+            for i in range(len(derivative)):
+                dpre[start + i] = grad.data[start + i] * derivative[i]
+        for s in range(batch):
+            xoff = s * self.in_dim
+            for f in range(self.filters):
+                weights = self.W[f]
+                grow = self.gW[f]
+                for oh in range(self.out_height):
+                    for ow in range(self.out_width):
+                        index = s * self.out_dim + (f * self.out_height + oh) * self.out_width + ow
+                        grad_value = dpre[index]
+                        if grad_value == 0.0:
+                            continue
+                        self.gb[f] += grad_value
+                        for c in range(self.channels):
+                            base = xoff + c * self.height * self.width
+                            for i in range(k):
+                                h = oh * self.stride + i
+                                row_base = base + h * self.width
+                                wbase = c * k * k + i * k
+                                for j in range(k):
+                                    wpos = ow * self.stride + j
+                                    dx[row_base + wpos] += grad_value * weights[wbase + j]
+                                    grow[wbase + j] += data[row_base + wpos] * grad_value
+        return Tensor(batch, self.in_dim, dx)
+
+    def params(self):
+        return [("W", self.W, self.gW), ("b", self.b, self.gb)]
+
+    def zero_grad(self):
+        size = self.channels * self.kernel * self.kernel
+        self.gW = [[0.0] * size for _ in range(self.filters)]
+        self.gb = [0.0] * self.filters
+
+    def to_dict(self):
+        return {
+            "type": "Conv2d", "filters": self.filters, "kernel": self.kernel,
+            "height": self.height, "width": self.width, "channels": self.channels,
+            "activation": self.activation, "stride": self.stride,
+            "W": self.W, "b": self.b,
+        }
+
+    def load_state(self, state):
+        self.W = [[float(v) for v in row] for row in state.get("W", [])]
+        self.b = [float(v) for v in state.get("b", [])]
+        if self.W:
+            self.filters = len(self.W)
+            self.zero_grad()
+
+
+class MaxPool(Layer):
+    """Max pooling over small images (keeps the channel layout)."""
+
+    type_name = "MaxPool"
+
+    def __init__(self, size: int = 2, stride: int = 2, height: int = 0, width: int = 0,
+                 channels: int = 1):
+        self.size = max(1, int(size))
+        self.stride = max(1, int(stride))
+        self.height = int(height)
+        self.width = int(width)
+        self.channels = int(channels)
+        self.in_dim = self.channels * self.height * self.width if self.height else 0
+        self.out_dim = 0
+        self._cache = None
+
+    def build(self, in_dim: int, rng: random.Random):
+        if self.height:
+            self.in_dim = self.in_dim or in_dim
+        else:
+            raise ValueError("MaxPool needs the image height and width")
+        self.out_height = (self.height - self.size) // self.stride + 1
+        self.out_width = (self.width - self.size) // self.stride + 1
+        self.out_dim = self.channels * self.out_height * self.out_width
+
+    def forward(self, x: Tensor) -> Tensor:
+        batch = x.rows
+        data = x.data
+        out = [0.0] * (batch * self.out_dim)
+        argmax = [0] * (batch * self.out_dim)
+        for s in range(batch):
+            xoff = s * self.in_dim
+            for c in range(self.channels):
+                base = xoff + c * self.height * self.width
+                for oh in range(self.out_height):
+                    for ow in range(self.out_width):
+                        best = None
+                        best_index = 0
+                        for i in range(self.size):
+                            h = oh * self.stride + i
+                            row_base = base + h * self.width
+                            for j in range(self.size):
+                                wpos = ow * self.stride + j
+                                value = data[row_base + wpos]
+                                if best is None or value > best:
+                                    best = value
+                                    best_index = row_base + wpos
+                        index = s * self.out_dim + (c * self.out_height + oh) * self.out_width + ow
+                        out[index] = best if best is not None else 0.0
+                        argmax[index] = best_index
+        self._cache = (x, argmax)
+        return Tensor(batch, self.out_dim, out)
+
+    def backward(self, grad: Tensor) -> Tensor:
+        x, argmax = self._cache
+        dx = [0.0] * (x.rows * self.in_dim)
+        for index in range(len(grad.data)):
+            dx[argmax[index]] += grad.data[index]
+        return Tensor(x.rows, self.in_dim, dx)
+
+    def to_dict(self):
+        return {"type": "MaxPool", "size": self.size, "stride": self.stride,
+                "height": self.height, "width": self.width, "channels": self.channels}
+
+
 class Embedding(Layer):
     type_name = "Embedding"
     trainable = True
@@ -477,6 +689,11 @@ LAYER_TYPES = {
     "dropout": Dropout,
     "flatten": Flatten,
     "embedding": Embedding,
+    "conv2d": Conv2d,
+    "conv": Conv2d,
+    "maxpool": MaxPool,
+    "max_pool": MaxPool,
+    "pool": MaxPool,
 }
 
 
@@ -764,15 +981,34 @@ class Model:
 
     def build(self, rng: random.Random, input_dim: int | None = None):
         dim = input_dim
+        spatial = None  # (height, width, channels) of the last feature map
         for layer in self.layers:
             if isinstance(layer, Embedding):
                 layer.build(layer.vocab_size, rng)
                 dim = layer.dim
                 continue
+            if isinstance(layer, Conv2d):
+                layer.build(dim or layer.in_dim, rng)
+                dim = layer.out_dim
+                spatial = (layer.out_height, layer.out_width, layer.filters)
+                continue
+            if isinstance(layer, MaxPool):
+                if not layer.height:
+                    if spatial is None:
+                        raise ValueError("MaxPool needs the image size: put a Conv2d before it")
+                    layer.height, layer.width, layer.channels = spatial
+                    layer.in_dim = layer.channels * layer.height * layer.width
+                layer.build(layer.in_dim, rng)
+                dim = layer.out_dim
+                spatial = (layer.out_height, layer.out_width, layer.channels)
+                continue
             if dim is None:
                 dim = getattr(layer, "in_dim", 0) or 0
             layer.build(dim, rng)
-            dim = layer.units if isinstance(layer, Dense) else dim
+            if isinstance(layer, Dense):
+                dim = layer.units
+            elif getattr(layer, "out_dim", None):
+                dim = layer.out_dim
 
     def forward(self, x: Tensor) -> Tensor:
         out = x
