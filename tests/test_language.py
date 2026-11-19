@@ -223,6 +223,102 @@ print forward(Line, [[1.0]])
         value = float(lines[-1].strip().strip("[]"))
         self.assertAlmostEqual(5.0, value, delta=1.0)  # y = 3x + 2
 
+    def test_multiclass_classifier(self):
+        lines, _ = run("""
+data blobs = dataset.blobs(classes = 3, per_class = 30)
+model Classifier {
+    layer Dense(16, "relu")
+    layer Dense(3, "softmax")
+    train(data = blobs, epochs = 60, lr = 0.05, optimizer = "adam", loss = "crossentropy")
+    eval(data = blobs)
+}
+""")
+        text = "\n".join(lines)
+        self.assertIn("accuracy", text)
+
+    def test_convolutional_network(self):
+        lines, _ = run("""
+data images = dataset.bars(count = 40, size = 8)
+model LineNet {
+    layer Conv2d(4, 3, 8, 8, 1, "relu")
+    layer MaxPool(2)
+    layer Flatten()
+    layer Dense(16, "relu")
+    layer Dense(2, "softmax")
+    train(data = images, epochs = 30, lr = 0.02, optimizer = "adam", loss = "crossentropy")
+    eval(data = images)
+}
+""")
+        text = "\n".join(lines)
+        self.assertIn("accuracy", text)
+        accuracy = float([line for line in lines if "accuracy" in line][0].split()[-1])
+        self.assertGreater(accuracy, 0.8)
+
+
+class TestConvolution(unittest.TestCase):
+    """The convolution must agree with a naive reference implementation."""
+
+    def setUp(self):
+        from lume.nn import Conv2d, MaxPool, Tensor
+        import random
+
+        self.rng = random.Random(0)
+        self.layer = Conv2d(3, 3, 4, 5, 2, "relu")
+        self.layer.build(2 * 4 * 5, self.rng)
+        self.x = Tensor(3, 2 * 4 * 5, [self.rng.uniform(-1, 1) for _ in range(3 * 2 * 4 * 5)])
+
+    def test_forward_matches_reference(self):
+        from lume.nn import Conv2d
+        layer = self.layer
+        out = layer.forward(self.x)
+        expected = []
+        for s in range(self.x.rows):
+            for f in range(layer.filters):
+                for oh in range(layer.out_height):
+                    for ow in range(layer.out_width):
+                        total = layer.b[f]
+                        for c in range(layer.channels):
+                            for i in range(layer.kernel):
+                                for j in range(layer.kernel):
+                                    index = (s * layer.in_dim + c * layer.height * layer.width
+                                             + (oh * layer.stride + i) * layer.width + ow * layer.stride + j)
+                                    total += (self.x.data[index]
+                                              * layer.W[f][c * layer.kernel ** 2 + i * layer.kernel + j])
+                        expected.append(max(0.0, total))
+        for got, want in zip(out.data, expected):
+            self.assertAlmostEqual(got, want, places=9)
+
+    def test_gradients_match_finite_differences(self):
+        from lume.nn import Tensor
+        layer = self.layer
+
+        def loss():
+            out = layer.forward(self.x)
+            return sum(value * value for value in out.data)
+
+        out = layer.forward(self.x)
+        layer.zero_grad()
+        layer.backward(Tensor(out.rows, out.cols, [2 * value for value in out.data]))
+        eps = 1e-5
+        for f in range(layer.filters):
+            for index in range(len(layer.W[f])):
+                old = layer.W[f][index]
+                layer.W[f][index] = old + eps
+                plus = loss()
+                layer.W[f][index] = old - eps
+                minus = loss()
+                layer.W[f][index] = old
+                numeric = (plus - minus) / (2 * eps)
+                self.assertAlmostEqual(numeric, layer.gW[f][index], places=5)
+
+    def test_max_pool_keeps_the_maximum(self):
+        from lume.nn import MaxPool, Tensor
+        pool = MaxPool(2, 2, 4, 5, 2)
+        pool.build(2 * 4 * 5, self.rng)
+        out = pool.forward(self.x)
+        best = max(self.x.data[r * pool.in_dim:(r + 1) * pool.in_dim] for r in range(self.x.rows))
+        self.assertAlmostEqual(max(out.data), max(best), places=9)
+
 
 class TestBuilders(unittest.TestCase):
     SOURCE = """
