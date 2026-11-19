@@ -37,7 +37,7 @@ def main() -> int:
         # open the XOR example so the editor shows real model code
         page.click('.ptab[data-panel="examples"]')
         page.wait_for_timeout(400)
-        page.click('.examples li:nth-child(5) button')
+        page.click('.examples li:nth-child(1) button')
         page.wait_for_timeout(900)
         page.screenshot(path=os.path.join(out, "studio-dark.png"))
         print("saved studio-dark.png")
