@@ -195,10 +195,10 @@ workflows/       готовые GitHub Actions workflows (скопируйте �
 docs/            спецификация языка, руководство, скриншоты
 ```
 
-> Скриншоты хранятся в репозитории дважды: как `docs/screenshots/*.png.b64`
-> (файловый API GitHub принимает только текст) и как самодостаточная страница
-> `docs/screenshots/index.html` со встроенными картинками. Восстановить обычные
-> PNG-файлы: `python tools/decode_screenshots.py`.
+> Скриншоты хранятся в репозитории дважды: как `docs/screenshots/*.jpg.b64`
+> (файловый API GitHub принимает только текст) и как самодостаточные страницы
+> `docs/screenshots/*.html` со встроенными картинками. Восстановить картинки:
+> `python tools/decode_screenshots.py`.
 
 ## Тесты
 
