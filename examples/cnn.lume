@@ -1,0 +1,37 @@
+# A convolutional network for images.
+#
+#   lume run examples/cnn.lume
+#
+# The dataset contains tiny 8x8 images: a vertical bar (class 0) or a
+# horizontal bar (class 1), slightly noisy.  A small CNN learns to tell them
+# apart - exactly the shape of a real image classifier.
+
+data images = dataset.bars(count = 60, size = 8)
+
+model LineNet {
+    layer Conv2d(4, 3, 8, 8, 1, "relu")   # 4 filters of 3x3
+    layer MaxPool(2)                      # 8x8 -> 3x3
+    layer Flatten()
+    layer Dense(16, "relu")
+    layer Dense(2, "softmax")
+
+    train(
+        data = images,
+        epochs = 40,
+        lr = 0.02,
+        optimizer = "adam",
+        loss = "crossentropy"
+    )
+
+    eval(data = images)
+}
+
+print "the network sees:"
+print predict(LineNet, [[0, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 1, 0, 0, 0, 0, 0,
+                         0, 0, 1, 0, 0, 0, 0, 0,
+                         0, 0, 1, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, 0, 0]])
