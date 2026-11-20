@@ -255,8 +255,104 @@ model LineNet {
         self.assertGreater(accuracy, 0.8)
 
 
+class TestSequenceModels(unittest.TestCase):
+    """The LSTM must learn sequences and produce correct gradients."""
+
+    def test_gradients_match_finite_differences(self):
+        from lume.nn import LSTM, Tensor
+        import random
+
+        rng = random.Random(3)
+        units, inputs, steps, batch = 4, 3, 3, 2
+        layer = LSTM(units, inputs, steps)
+        layer.build(inputs, rng)
+        x = Tensor(batch * steps, inputs,
+                   [rng.uniform(-1, 1) for _ in range(batch * steps * inputs)])
+
+        def loss():
+            out = layer.forward(x)
+            return sum(value * value for value in out.data)
+
+        out = layer.forward(x)
+        layer.zero_grad()
+        layer.backward(Tensor(out.rows, out.cols, [2 * value for value in out.data]))
+        eps = 1e-6
+        for k in range(0, 4 * units, 3):
+            for i in range(inputs):
+                old = layer.W[k][i]
+                layer.W[k][i] = old + eps
+                plus = loss()
+                layer.W[k][i] = old - eps
+                minus = loss()
+                layer.W[k][i] = old
+                self.assertAlmostEqual((plus - minus) / (2 * eps), layer.gW[k][i], places=5)
+        for k in range(0, 4 * units, 3):
+            for i in range(units):
+                old = layer.U[k][i]
+                layer.U[k][i] = old + eps
+                plus = loss()
+                layer.U[k][i] = old - eps
+                minus = loss()
+                layer.U[k][i] = old
+                self.assertAlmostEqual((plus - minus) / (2 * eps), layer.gU[k][i], places=5)
+
+    def test_mean_pool_averages_the_sequence(self):
+        from lume.nn import MeanPool, Tensor
+        pool = MeanPool(3)
+        pool.build(2, None)
+        x = Tensor(6, 2, [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6])
+        out = pool.forward(x)
+        self.assertEqual((2, 2), out.shape)
+        self.assertAlmostEqual(2.0, out.at(0, 0))   # mean of rows 1, 2, 3
+        self.assertAlmostEqual(5.0, out.at(1, 0))   # mean of rows 4, 5, 6
+
+    def test_text_classifier_learns(self):
+        lines, _ = run("""
+let vocabulary = {"good": 0, "great": 1, "bad": 2, "hate": 3}
+let unknown = 4
+let length = 3
+
+fn encode(review) {
+    let ids = [0, 0, 0]
+    let position = 0
+    for word in split(lower(review)) {
+        if position < length {
+            let id = unknown
+            for key in keys(vocabulary) {
+                if key == word { id = vocabulary[key] }
+            }
+            ids[position] = id
+            position = position + 1
+        }
+    }
+    return ids
+}
+
+let reviews = ["good great", "bad hate", "good good", "hate bad"]
+let labels = [1, 0, 1, 0]
+let tokens = []
+for review in reviews {
+    tokens = tokens + encode(review)
+}
+
+data bag = dataset(tensor(tokens), labels, group = length)
+
+model TextNet {
+    layer Embedding(5, 6)
+    layer LSTM(6, 6, length)
+    layer MeanPool(length)
+    layer Dense(1, "sigmoid")
+    train(data = bag, epochs = 30, lr = 0.05, optimizer = "adam", loss = "binary_crossentropy")
+    eval(data = bag)
+}
+""")
+        text = "\n".join(lines)
+        self.assertIn("accuracy", text)
+        accuracy = float([line for line in lines if "accuracy" in line][0].split()[-1])
+        self.assertGreater(accuracy, 0.9)
+
+
 class TestConvolution(unittest.TestCase):
-    """The convolution must agree with a naive reference implementation."""
 
     def setUp(self):
         from lume.nn import Conv2d, MaxPool, Tensor
