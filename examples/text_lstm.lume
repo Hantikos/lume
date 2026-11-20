@@ -1,0 +1,69 @@
+# A tiny text classifier: word embeddings + LSTM.
+#
+#   lume run examples/text_lstm.lume
+#
+# The model reads a review word by word, remembers the context in an LSTM and
+# decides whether the sentiment is positive.
+
+let vocabulary = {"good": 0, "great": 1, "love": 2, "bad": 3, "hate": 4, "awful": 5, "the": 6, "movie": 7}
+let unknown = 8
+let length = 4
+
+# turn a review into four token ids
+fn encode(review) {
+    let ids = [0, 0, 0, 0]
+    let position = 0
+    for word in split(lower(review)) {
+        if position < length {
+            let id = unknown
+            for key in keys(vocabulary) {
+                if key == word {
+                    id = vocabulary[key]
+                }
+            }
+            ids[position] = id
+            position = position + 1
+        }
+    }
+    return ids
+}
+
+let reviews = [
+    "good great love",
+    "bad awful hate",
+    "love the good movie",
+    "hate it awful bad",
+    "great movie love",
+    "awful bad hate"
+]
+let labels = [1, 0, 1, 0, 1, 0]
+
+let tokens = []
+for review in reviews {
+    tokens = tokens + encode(review)
+}
+
+# group = 4 means: every sample occupies four rows of the token table
+data bag = dataset(tensor(tokens), labels, group = length)
+
+model TextNet {
+    layer Embedding(9, 8)       # 9 words, 8 numbers per word
+    layer LSTM(8, 8, length)    # 8 memory cells, 4 steps
+    layer MeanPool(length)      # one vector per review
+    layer Dense(1, "sigmoid")
+
+    train(
+        data = bag,
+        epochs = 40,
+        lr = 0.05,
+        optimizer = "adam",
+        loss = "binary_crossentropy"
+    )
+
+    eval(data = bag)
+}
+
+print "a good review:"
+print predict(TextNet, encode("good love great"))
+print "a bad review:"
+print predict(TextNet, encode("awful bad hate"))
