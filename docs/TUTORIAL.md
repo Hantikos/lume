@@ -250,7 +250,52 @@ model LineNet {
 
 ---
 
-## Шаг 13. Куда двигаться дальше
+## Шаг 13. Текст и последовательности
+
+```lume
+let vocabulary = {"good": 0, "great": 1, "bad": 2, "hate": 3}
+let unknown = 4
+let length = 3
+
+fn encode(review) {
+    let ids = [0, 0, 0]
+    let position = 0
+    for word in split(lower(review)) {
+        if position < length {
+            let id = unknown
+            for key in keys(vocabulary) {
+                if key == word { id = vocabulary[key] }
+            }
+            ids[position] = id
+            position = position + 1
+        }
+    }
+    return ids
+}
+
+let reviews = ["good great", "bad hate", "good good", "hate bad"]
+let labels = [1, 0, 1, 0]
+
+let tokens = []
+for review in reviews {
+    tokens = tokens + encode(review)
+}
+
+// group = length : на один пример приходится length строк таблицы токенов
+data bag = dataset(tensor(tokens), labels, group = length)
+
+model TextNet {
+    layer Embedding(5, 6)
+    layer LSTM(6, 6, length)
+    layer MeanPool(length)
+    layer Dense(1, "sigmoid")
+    train(data = bag, epochs = 30, lr = 0.05, optimizer = "adam", loss = "binary_crossentropy")
+}
+```
+
+---
+
+## Шаг 14. Куда двигаться дальше
 
 * `examples/tour.lume` — полный обзор возможностей языка.
 * `examples/text_sentiment.lume` — классификатор текста на bag-of-words.

@@ -156,6 +156,8 @@ model MyNet {
 | `Embedding` | обучаемый | `Embedding(vocab_size, dim)` |
 | `Conv2d` | обучаемый | `Conv2d(filters, kernel, height, width, channels, activation, stride)` |
 | `MaxPool` | — | `MaxPool(size, stride)` |
+| `LSTM` | обучаемый | `LSTM(units, input_size, seq_len)` |
+| `MeanPool` | — | `MeanPool(seq_len)` |
 
 Активации: `none`, `linear`, `relu`, `sigmoid`, `tanh`, `gelu`, `softmax`.
 
@@ -176,6 +178,22 @@ model Vision {
 
 Размер картинки указывается в `Conv2d` (`height`, `width`, `channels`),
 а `MaxPool` наследует размеры от предыдущего слоя.
+
+**Последовательности** (текст, временные ряды) строятся так:
+
+```lume
+data bag = dataset(tensor(tokens), labels, group = 4)   # 4 шага на один пример
+
+model TextNet {
+    layer Embedding(9, 8)        # слово -> 8 чисел
+    layer LSTM(8, 8, 4)          # 8 ячеек памяти, 4 шага
+    layer MeanPool(4)            # один вектор на пример
+    layer Dense(1, "sigmoid")
+}
+```
+
+Параметр `group` у `dataset` говорит, сколько строк входной таблицы приходится
+на один пример (для последовательностей — число шагов).
 
 ### 3.2 Данные
 
