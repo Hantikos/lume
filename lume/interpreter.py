@@ -348,6 +348,14 @@ class Interpreter:
             size = args[0] if args else kwargs.get("size", 2)
             stride = args[1] if len(args) > 1 else kwargs.get("stride", 2)
             return cls(int(size), int(stride))
+        if cls.__name__ == "LSTM":
+            units = args[0] if args else kwargs.get("units", 8)
+            input_size = args[1] if len(args) > 1 else kwargs.get("input_size", 8)
+            seq_len = args[2] if len(args) > 2 else kwargs.get("seq_len", 1)
+            return cls(int(units), int(input_size), int(seq_len))
+        if cls.__name__ == "MeanPool":
+            seq_len = args[0] if args else kwargs.get("seq_len", 1)
+            return cls(int(seq_len))
         return cls()
 
     # -- expressions ------------------------------------------------------

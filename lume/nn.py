@@ -632,6 +632,216 @@ class MaxPool(Layer):
                 "height": self.height, "width": self.width, "channels": self.channels}
 
 
+class LSTM(Layer):
+    """Long short-term memory over a sequence of tokens.
+
+    The input is a flat tensor with one row per time step: the rows are
+    ordered sample by sample (``sample 0, step 0..T-1``, then sample 1 ...).
+    The layer outputs the hidden state of every time step; ``MeanPool``
+    turns the sequence into one vector per sample.
+    """
+
+    type_name = "LSTM"
+    trainable = True
+
+    def __init__(self, units: int, input_size: int, seq_len: int = 1):
+        self.units = int(units)
+        self.input_size = int(input_size)
+        self.seq_len = max(1, int(seq_len))
+        self.in_dim = self.input_size
+        self.out_dim = self.units
+        self.W = None
+        self.U = None
+        self.b = None
+        self.gW = None
+        self.gU = None
+        self.gb = None
+        self._cache = None
+
+    def build(self, in_dim: int, rng: random.Random):
+        if in_dim and in_dim != self.input_size:
+            raise ValueError(f"LSTM expects {self.input_size} inputs per step, got {in_dim}")
+        self.in_dim = self.input_size
+        limit = math.sqrt(6.0 / (self.input_size + self.units))
+        limit2 = math.sqrt(6.0 / (self.units + self.units))
+        self.W = [[rng.uniform(-limit, limit) for _ in range(self.input_size)]
+                  for _ in range(4 * self.units)]
+        self.U = [[rng.uniform(-limit2, limit2) for _ in range(self.units)]
+                  for _ in range(4 * self.units)]
+        self.b = [0.0] * (4 * self.units)
+        self.gW = [[0.0] * self.input_size for _ in range(4 * self.units)]
+        self.gU = [[0.0] * self.units for _ in range(4 * self.units)]
+        self.gb = [0.0] * (4 * self.units)
+
+    # -- helpers ----------------------------------------------------------
+    def _gates(self, x_row, h_prev):
+        gates = []
+        for k in range(4 * self.units):
+            total = self.b[k]
+            wrow = self.W[k]
+            for i in range(self.input_size):
+                total += wrow[i] * x_row[i]
+            urow = self.U[k]
+            for i in range(self.units):
+                total += urow[i] * h_prev[i]
+            gates.append(total)
+        return gates
+
+    def forward(self, x: Tensor) -> Tensor:
+        if self.W is None:
+            self.build(x.cols, random.Random(0))
+        units = self.units
+        rows = x.rows
+        if rows % self.seq_len:
+            raise ValueError(f"the number of rows ({rows}) must be a multiple of the sequence length "
+                             f"({self.seq_len})")
+        batch = rows // self.seq_len
+        out = [0.0] * (rows * units)
+        steps = []
+        for s in range(batch):
+            h = [0.0] * units
+            c = [0.0] * units
+            for t in range(self.seq_len):
+                row = s * self.seq_len + t
+                x_row = x.row(row)
+                gates = self._gates(x_row, h)
+                i_g = gates[0:units]
+                f_g = gates[units:2 * units]
+                g_g = gates[2 * units:3 * units]
+                o_g = gates[3 * units:4 * units]
+                i_v = [_sigmoid_scalar(v) for v in i_g]
+                f_v = [_sigmoid_scalar(v) for v in f_g]
+                g_v = [math.tanh(v) for v in g_g]
+                o_v = [_sigmoid_scalar(v) for v in o_g]
+                c_prev = c
+                h_prev = h
+                c = [f_v[j] * c_prev[j] + i_v[j] * g_v[j] for j in range(units)]
+                h = [o_v[j] * math.tanh(c[j]) for j in range(units)]
+                steps.append({"row": row, "x": x_row, "h_prev": h_prev, "c_prev": c_prev,
+                              "i": i_v, "f": f_v, "g": g_v, "o": o_v, "c": c, "h": h})
+                for j in range(units):
+                    out[row * units + j] = h[j]
+        self._cache = (x, steps, batch)
+        return Tensor(rows, units, out)
+
+    def backward(self, grad: Tensor) -> Tensor:
+        x, steps, batch = self._cache
+        units = self.units
+        rows = x.rows
+        dx = [0.0] * (rows * self.input_size)
+        dh_next = [0.0] * units
+        dc_next = [0.0] * units
+        for index in range(len(steps) - 1, -1, -1):
+            step = steps[index]
+            row = step["row"]
+            if row % self.seq_len == self.seq_len - 1:
+                # the next row backwards starts another sample, and the hidden
+                # state is reset there, so no gradient may flow between them
+                dh_next = [0.0] * units
+                dc_next = [0.0] * units
+            dh = [dh_next[j] + grad.data[row * units + j] for j in range(units)]
+            c_new = step["c"]
+            h_new = step["h"]
+            tanh_c = math.tanh
+            do = [dh[j] * tanh_c(c_new[j]) for j in range(units)]
+            dc = [dc_next[j] + dh[j] * step["o"][j] * (1 - tanh_c(c_new[j]) ** 2) for j in range(units)]
+            di = [dc[j] * step["g"][j] for j in range(units)]
+            df = [dc[j] * step["c_prev"][j] for j in range(units)]
+            dg = [dc[j] * step["i"][j] for j in range(units)]
+            di_raw = [di[j] * step["i"][j] * (1 - step["i"][j]) for j in range(units)]
+            df_raw = [df[j] * step["f"][j] * (1 - step["f"][j]) for j in range(units)]
+            dg_raw = [dg[j] * (1 - step["g"][j] ** 2) for j in range(units)]
+            do_raw = [do[j] * step["o"][j] * (1 - step["o"][j]) for j in range(units)]
+            gates = di_raw + df_raw + dg_raw + do_raw
+            for k in range(4 * units):
+                grow = self.gW[k]
+                for i in range(self.input_size):
+                    grow[i] += gates[k] * step["x"][i]
+                gurow = self.gU[k]
+                for i in range(units):
+                    gurow[i] += gates[k] * step["h_prev"][i]
+                self.gb[k] += gates[k]
+            for i in range(self.input_size):
+                total = 0.0
+                for k in range(4 * units):
+                    total += self.W[k][i] * gates[k]
+                dx[row * self.input_size + i] = total
+            dh_next = [0.0] * units
+            for k in range(4 * units):
+                urow = self.U[k]
+                value = gates[k]
+                if value == 0.0:
+                    continue
+                for j in range(units):
+                    dh_next[j] += urow[j] * value
+            dc_next = [dc[j] * step["f"][j] for j in range(units)]
+        return Tensor(rows, self.input_size, dx)
+
+    def params(self):
+        return [("W", self.W, self.gW), ("U", self.U, self.gU), ("b", self.b, self.gb)]
+
+    def zero_grad(self):
+        self.gW = [[0.0] * self.input_size for _ in range(4 * self.units)]
+        self.gU = [[0.0] * self.units for _ in range(4 * self.units)]
+        self.gb = [0.0] * (4 * self.units)
+
+    def to_dict(self):
+        return {"type": "LSTM", "units": self.units, "input_size": self.input_size,
+                "seq_len": self.seq_len, "W": self.W, "U": self.U, "b": self.b}
+
+    def load_state(self, state):
+        self.W = [[float(v) for v in row] for row in state.get("W", [])]
+        self.U = [[float(v) for v in row] for row in state.get("U", [])]
+        self.b = [float(v) for v in state.get("b", [])]
+        if self.W:
+            self.units = len(self.W) // 4
+            self.zero_grad()
+
+
+class MeanPool(Layer):
+    """Average the hidden states of a sequence into one vector per sample."""
+
+    type_name = "MeanPool"
+
+    def __init__(self, seq_len: int = 1):
+        self.seq_len = max(1, int(seq_len))
+        self.in_dim = 0
+        self.out_dim = 0
+        self._cache = None
+
+    def build(self, in_dim: int, rng: random.Random):
+        self.in_dim = in_dim
+        self.out_dim = in_dim
+
+    def forward(self, x: Tensor) -> Tensor:
+        if x.rows % self.seq_len:
+            raise ValueError(f"the number of rows ({x.rows}) must be a multiple of the sequence "
+                             f"length ({self.seq_len})")
+        batch = x.rows // self.seq_len
+        out = [0.0] * (batch * x.cols)
+        for s in range(batch):
+            base = s * self.seq_len
+            for t in range(self.seq_len):
+                row = x.row(base + t)
+                for j in range(x.cols):
+                    out[s * x.cols + j] += row[j] / self.seq_len
+        self._cache = (x, batch)
+        return Tensor(batch, x.cols, out)
+
+    def backward(self, grad: Tensor) -> Tensor:
+        x, batch = self._cache
+        out = [0.0] * (x.rows * x.cols)
+        for s in range(batch):
+            for t in range(self.seq_len):
+                row = s * self.seq_len + t
+                for j in range(x.cols):
+                    out[row * x.cols + j] = grad.data[s * x.cols + j] / self.seq_len
+        return Tensor(x.rows, x.cols, out)
+
+    def to_dict(self):
+        return {"type": "MeanPool", "seq_len": self.seq_len}
+
+
 class Embedding(Layer):
     type_name = "Embedding"
     trainable = True
@@ -689,6 +899,11 @@ LAYER_TYPES = {
     "dropout": Dropout,
     "flatten": Flatten,
     "embedding": Embedding,
+    "lstm": LSTM,
+    "gru": LSTM,
+    "meanpool": MeanPool,
+    "mean_pool": MeanPool,
+    "avgpool": MeanPool,
     "conv2d": Conv2d,
     "conv": Conv2d,
     "maxpool": MaxPool,
@@ -928,13 +1143,23 @@ OPTIMIZERS = {
 # Dataset & model
 # --------------------------------------------------------------------------
 class Dataset:
-    def __init__(self, x: Tensor, y, name: str = "dataset"):
+    """A set of samples.
+
+    ``group`` tells how many rows of ``x`` belong to one sample - it is used
+    for sequences, where every sample occupies ``group`` time steps.
+    """
+
+    def __init__(self, x: Tensor, y, name: str = "dataset", group: int = 1):
         self.x = x
         self.y = y
         self.name = name
+        self.group = max(1, int(group))
 
     def __len__(self):
-        return self.x.rows
+        """Number of samples (a sequence sample occupies `group` rows of x)."""
+        if isinstance(self.y, Tensor):
+            return self.y.rows
+        return len(self.y)
 
     @property
     def input_dim(self):
@@ -947,13 +1172,16 @@ class Dataset:
         return len(set(int(v) for v in self.y)) or 1
 
     def slice(self, start: int, size: int):
-        end = min(self.x.rows, start + size)
-        x = Tensor(end - start, self.x.cols, self.x.data[start * self.x.cols:end * self.x.cols])
+        end = min(len(self), start + size)
+        group = self.group
+        x = Tensor((end - start) * group, self.x.cols,
+                   self.x.data[start * group * self.x.cols:end * group * self.x.cols])
         if isinstance(self.y, Tensor):
-            y = Tensor(end - start, self.y.cols, self.y.data[start * self.y.cols:end * self.y.cols])
+            y = Tensor(end - start, self.y.cols,
+                       self.y.data[start * self.y.cols:end * self.y.cols])
         else:
             y = list(self.y[start:end])
-        return Dataset(x, y, self.name)
+        return Dataset(x, y, self.name, group)
 
     def describe(self):
         return {

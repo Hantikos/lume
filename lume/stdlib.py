@@ -215,8 +215,8 @@ def _build_builtins() -> dict:
                                                         for i in range(int(n)) for j in range(int(n))]))
 
     # -- datasets ---------------------------------------------------------
-    add("dataset", lambda x, y, name="dataset": Dataset(
-        x if isinstance(x, Tensor) else Tensor.from_nested(x), y, name))
+    add("dataset", lambda x, y, name="dataset", group=1: Dataset(
+        x if isinstance(x, Tensor) else Tensor.from_nested(x), y, name, group))
 
     def _xor():
         x = Tensor.from_nested([[0, 0], [0, 1], [1, 0], [1, 1]])
